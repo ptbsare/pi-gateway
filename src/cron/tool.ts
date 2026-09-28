@@ -10,6 +10,7 @@ import { formatCronDescription } from "./format.js";
 export function createCronAddTool(
   userId: string,
   contextToken?: string,
+  accountId?: string,
 ) {
   return defineTool({
     name: "cron_add",
@@ -28,7 +29,7 @@ export function createCronAddTool(
       }),
     }),
     execute: async (_toolCallId, params) => {
-      const result = addJob(params.schedule, params.prompt, userId, contextToken);
+      const result = addJob(params.schedule, params.prompt, userId, contextToken, accountId);
       if (!result) {
         return {
           content: [{ type: "text" as const, text: "❌ schedule 格式错误，请检查 crontab 表达式" }],
@@ -36,7 +37,7 @@ export function createCronAddTool(
           isError: true,
         };
       }
-      
+
       const desc = formatCronDescription(params.schedule, result.nextRunAt);
       return {
         content: [

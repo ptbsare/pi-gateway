@@ -283,14 +283,19 @@ export class PiSessionManager {
         }),
         execute: async (_toolCallId, params: { path: string }) => handleSend(params),
       }),
-      // 定时任务工具：允许 agent 添加 cron 定时任务
-      ...(userInfo ? [createCronAddTool(userInfo.userId, userInfo.contextToken)] : []),
+      // 定时任务工具：允许 agent 添加 cron 定时任务（绑定归属账号，避免多账号重复执行）
+      ...(userInfo ? [createCronAddTool(userInfo.userId, userInfo.contextToken, this.accountId)] : []),
     ];
   }
 
   /** 设置 key 对应的用户信息（用于 cron 结果回发） */
   setUserKey(key: string, userId: string, contextToken?: string): void {
     this.userKeys.set(key, { userId, contextToken });
+  }
+
+  /** 读取 key 对应的用户信息（供 /cron add 使用真实用户与账号） */
+  getUserKey(key: string): { userId: string; contextToken?: string } | undefined {
+    return this.userKeys.get(key);
   }
 
   private async getOrCreate(key: string): Promise<AgentSession> {

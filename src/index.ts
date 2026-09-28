@@ -84,7 +84,7 @@ async function runAccountRunner(
     }
     logger.info(`[cron] [${accountId}] 任务 ${job.id} 执行完成，结果已回发 ${job.userId}`);
   };
-  registerCronExecutor(cronExecutor);
+  registerCronExecutor(accountId, cronExecutor);
 
   try {
     while (!signal.aborted) {

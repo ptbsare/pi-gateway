@@ -220,7 +220,15 @@ export class SlashCommandHandler {
         return "用法: /cron add \"schedule\" \"prompt\"\n示例: /cron add \"0 9 * * *\" \"提醒我开会\"";
       }
       const [_, schedule, prompt] = match;
-      const result = await mod.addJob(schedule, prompt, "user", undefined);
+      // 用真实用户信息与当前账号，避免结果回发到错误会话/被别的账号重复执行
+      const info = this.pi.getUserKey(key);
+      const result = await mod.addJob(
+        schedule,
+        prompt,
+        info?.userId ?? "user",
+        info?.contextToken,
+        this.accountId,
+      );
       if (!result) return "❌ schedule 格式错误，请使用 crontab 5 字段格式（分 时 日 月 周）";
       const desc = formatCronDescription(schedule, result.nextRunAt);
       return `✅ 定时任务已添加\nID: ${result.id}\n计划: ${schedule}\n下次执行: ${desc}`;
