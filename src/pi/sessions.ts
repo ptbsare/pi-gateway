@@ -13,7 +13,7 @@ import { detectSendableKind, type SendableKind } from "../ilink/media.js";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { logger } from "../logger/index.js";
-import { createCronAddTool } from "../cron/tool.js";
+import { createCronTool } from "../cron/tool.js";
 
 /** 当前消息的回复上下文（供自定义工具回发媒体） */
 export interface ReplyContext {
@@ -283,8 +283,8 @@ export class PiSessionManager {
         }),
         execute: async (_toolCallId, params: { path: string }) => handleSend(params),
       }),
-      // 定时任务工具：允许 agent 添加 cron 定时任务（绑定归属账号，避免多账号重复执行）
-      ...(userInfo ? [createCronAddTool(userInfo.userId, userInfo.contextToken, this.accountId)] : []),
+      // 定时任务工具：允许 agent 管理 cron 定时任务（增/查/改/删）
+      ...(userInfo ? [createCronTool(userInfo.userId, userInfo.contextToken, this.accountId)] : []),
     ];
   }
 

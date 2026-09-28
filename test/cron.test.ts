@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { parseCronSchedule, addJob, loadJobs, removeJob, listJobs, startScheduler, stopScheduler } from "../src/cron/scheduler.js";
+import { parseCronSchedule, addJob, loadJobs, removeJob, listJobs, getJob, updateJob, startScheduler, stopScheduler } from "../src/cron/scheduler.js";
 
 describe("parseCronSchedule", () => {
   it("无效格式返回 undefined", () => {
@@ -63,9 +63,47 @@ describe("addJob / listJobs / removeJob", () => {
     expect(removeJob(result!.id)).toBe(true);
     expect(listJobs().length).toBe(0);
   });
+});
 
-  it("非斜杠命令不进入 cron handler", () => {
-    // 由 command.ts 的 handle() 保证：非 / 开头返回 null
-    expect(true).toBe(true);
+describe("getJob / updateJob", () => {
+  afterEach(() => {
+    import("node:fs").then(({ rmSync }) => {
+      rmSync("/root/.pi-gateway/cron-jobs.json", { force: true });
+    });
+  });
+
+  it("查询不存在的任务返回 undefined", () => {
+    expect(getJob("nope")).toBeUndefined();
+  });
+
+  it("更新 schedule 与 prompt 后重算下次执行时间", () => {
+    const created = addJob("0 9 * * *", "旧", "u", undefined, "acct");
+    const before = getJob(created!.id)!;
+    expect(before.accountId).toBe("acct");
+    // getJob 返回引用，updateJob 原地修改，故先留快照再更新
+    const beforeSchedule = before.schedule;
+    const updated = updateJob(created!.id, { schedule: "*/5 * * * *", prompt: "新" });
+    expect(updated).toBeDefined();
+    expect(updated!.schedule).toBe("*/5 * * * *");
+    expect(updated!.prompt).toBe("新");
+    expect(updated!.schedule).not.toBe(beforeSchedule);
+    // getJob 反映最新值
+    expect(getJob(created!.id)?.prompt).toBe("新");
+    removeJob(created!.id);
+  });
+
+  it("update 非法 schedule 返回 undefined 且不改动原任务", () => {
+    const created = addJob("0 9 * * *", "keep", "u");
+    const updated = updateJob(created!.id, { schedule: "not-a-cron" });
+    expect(updated).toBeUndefined();
+    expect(getJob(created!.id)?.schedule).toBe("0 9 * * *");
+    removeJob(created!.id);
+  });
+
+  it("update 可暂停/启用任务", () => {
+    const created = addJob("0 9 * * *", "p", "u");
+    expect(updateJob(created!.id, { enabled: false })?.enabled).toBe(false);
+    expect(updateJob(created!.id, { enabled: true })?.enabled).toBe(true);
+    removeJob(created!.id);
   });
 });

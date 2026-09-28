@@ -37,7 +37,7 @@ By embedding the pi SDK in-process, the gateway offers unified multi-session man
 - 🌟 **Unified Agent Runtime**: Invokes `pi-coding-agent` SDK directly in the same process—no microservices, proxies, or bloatware.
 - 👥 **Multi-Account Concurrency**: Multi-account support with isolated session mappings, context caches, and independent Cron schedulers.
 - 🔄 **Session Recovery (`/resume`)**: Automatic persistence of chat history. Page through, inspect, and resume past sessions with `/resume` at any time without losing context.
-- ⏰ **Smart Cron Scheduling (`/cron`)**: Schedule recurring tasks via standard crontab expressions or natural language (pi uses its built-in `cron_add` tool). Results are pushed directly back to the specified chat.
+- ⏰ **Smart Cron Scheduling (`/cron`)**: Schedule recurring tasks via standard crontab expressions or natural language (pi uses its built-in `cron` tool (add/list/update/remove)). Results are pushed directly back to the specified chat.
 - 📊 **Usage & Cost Auditing (`/usage`)**: Real-time stats on messages, tool invocations, token breakdown (input/output/cache read), context window consumption %, and estimated API costs per session.
 - 🛠️ **Slash Commands**: 11 built-in slash commands including `/new`, `/model` (list/switch models), `/skill` (load pi skills), `/mcp` (use Model Context Protocol tools), `/stop` (interrupt stuck Bash/coding tasks), `/reload` (reload configs), and `/ping`.
 - 🛡️ **Security Policies**:

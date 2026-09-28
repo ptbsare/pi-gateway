@@ -199,7 +199,7 @@ export class SlashCommandHandler {
       const jobs = mod.listJobs();
       const lines = ["📋 定时任务（共 " + jobs.length + " 个）", ""];
       if (!jobs.length) {
-        lines.push("暂无定时任务。通过 AI 发送 /cron add 或让 Agent 使用 cron_add 工具添加。");
+        lines.push("暂无定时任务。通过 AI 发送 /cron add 或让 Agent 使用 cron 工具（action=add）添加。");
       } else {
         jobs.slice(0, 20).forEach((j) => {
           const desc = formatCronDescription(j.schedule, j.nextRunAt);

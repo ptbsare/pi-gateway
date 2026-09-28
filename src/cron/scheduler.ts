@@ -159,6 +159,31 @@ export function removeJob(id: string): boolean {
   return true;
 }
 
+/** 查询单个定时任务 */
+export function getJob(id: string): CronJob | undefined {
+  return jobs.find((j) => j.id === id);
+}
+
+/** 修改定时任务（schedule/prompt 可选，改动后重算下次执行时间） */
+export function updateJob(
+  id: string,
+  patch: { schedule?: string; prompt?: string; enabled?: boolean },
+): CronJob | undefined {
+  const job = jobs.find((j) => j.id === id);
+  if (!job) return undefined;
+  if (patch.schedule !== undefined) {
+    const nextRunAt = parseCronSchedule(patch.schedule);
+    if (nextRunAt === undefined) return undefined; // schedule 非法，原样不动
+    job.schedule = patch.schedule;
+    job.nextRunAt = nextRunAt;
+  }
+  if (patch.prompt !== undefined) job.prompt = patch.prompt;
+  if (patch.enabled !== undefined) job.enabled = patch.enabled;
+  saveJobs();
+  logger.info(`[cron] 更新任务 ${id}: schedule=${job.schedule} enabled=${job.enabled}`);
+  return job;
+}
+
 /** 启动调度器 */
 export function startScheduler(onJobRun: (job: CronJob) => Promise<void>): void {
   // 立即加载一次
