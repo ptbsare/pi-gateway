@@ -23,6 +23,13 @@ export interface ReplyContext {
   sendImage: (path: string) => Promise<void>;
 }
 
+/** 斜杠命令（如 /goal 插件）执行后的宽限等待时间（毫秒） */
+const COMMAND_SETTLE_GRACE_MS = 2000;
+/** 宽限窗口内轮询间隔（毫秒） */
+const COMMAND_SETTLE_POLL_MS = 100;
+/** 检测到插件拉起 agent 后等待其完成的最长时间（毫秒） */
+const COMMAND_RUN_TIMEOUT_MS = 10 * 60 * 1000;
+
 export interface ChatOptions {
   /** 入站图片（base64），供 pi 视觉理解 */
   images?: Array<{ mimeType: string; data: string }>;
@@ -376,11 +383,57 @@ export class PiSessionManager {
         ? images.map((img) => ({ type: "image" as const, mimeType: img.mimeType, data: img.data }))
         : undefined;
       await session.prompt(text, promptImages ? { images: promptImages } : undefined);
+      // 斜杠命令（如第三方插件的 /goal）在 prompt() 内同步执行后立即返回，
+      // 但插件可能通过 pi.sendUserMessage(followUp) 触发后续 agent 轮次。
+      // 先在宽限窗口内轮询会话是否被拉起，若被拉起则一直等到真正空闲，
+      // 保证订阅窗口覆盖插件拉起的全部轮次；
+      // 否则 final 为空 → 网关按“空回复”跳过发送，微信收不到结果。
+      await this.settleCommandBackgroundWork(session);
     } finally {
       this.busy.delete(key);
       unsubscribe();
     }
     return (final || current).trim();
+  }
+
+  /**
+   * 斜杠命令可能 fire-and-forget 触发后续 agent 轮次（如 /goal 插件）。
+   * 在宽限窗口内轮询会话是否被拉起；若被拉起，则等待直到会话真正空闲。
+   * （one-at-a-time 模式下队列在一轮内被合并排空，单轮结束后会话空闲即代表排空。）
+   */
+  private async settleCommandBackgroundWork(session: AgentSession): Promise<void> {
+    const busy = () => !session.isIdle || session.getSteeringMessages().length > 0 || session.getFollowUpMessages().length > 0;
+    let deadline = Date.now() + COMMAND_SETTLE_GRACE_MS;
+    while (!busy() && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, COMMAND_SETTLE_POLL_MS));
+    }
+    if (!busy()) return;
+
+    // 会话已被插件拉起：等待其完全结束（覆盖多轮 goal 循环）。
+    // 因为插件的 sendUserMessage 往往是在 agent_end 钩子里异步微任务(fire-and-forget)拉起的，
+    // 在多轮循环交替的间隙，会有一刹那 session.isIdle 变为 true。
+    // 为了避免提前退出，我们需要在 waitForIdle 后，连续稳定空闲至少 1.2 秒。
+    deadline = Date.now() + COMMAND_RUN_TIMEOUT_MS;
+    let consecutiveIdleMs = 0;
+    const REQUIRED_STABLE_IDLE_MS = 1200;
+
+    while (Date.now() < deadline) {
+      try {
+        await session.waitForIdle();
+      } catch {
+        return;
+      }
+      if (busy()) {
+        consecutiveIdleMs = 0;
+      } else {
+        consecutiveIdleMs += COMMAND_SETTLE_POLL_MS;
+        if (consecutiveIdleMs >= REQUIRED_STABLE_IDLE_MS) {
+          return; // 持续空闲，说明插件确实没有再追加新一轮了
+        }
+      }
+      await new Promise((r) => setTimeout(r, COMMAND_SETTLE_POLL_MS));
+    }
+    logger.warn(`[pi] 斜杠命令后台执行超过 ${COMMAND_RUN_TIMEOUT_MS / 1000}s，提前返回当前结果`);
   }
 
   dispose(): void {
